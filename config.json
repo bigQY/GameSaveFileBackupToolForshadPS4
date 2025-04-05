@@ -8,6 +8,7 @@
         "backup_root": "backups"
     },
     "features": {
-        "md5_deduplication": true
+        "md5_deduplication": true,
+        "auto_load_after_restore": false
     }
 }

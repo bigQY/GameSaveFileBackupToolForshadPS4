@@ -9,6 +9,9 @@ import keyboard
 import threading
 import hashlib
 from pathlib import Path
+import win32gui
+import win32con
+import time
 
 class BackupManager:
     def __init__(self, master):
@@ -248,6 +251,10 @@ class BackupManager:
                 shutil.copytree(os.path.join(backup_path, "data"), self.source_path, dirs_exist_ok=True)
             
             self.show_status(f"已快速恢复：{latest['name']}")
+            
+            # 检查是否需要自动载入
+            if self.config['features'].get('auto_load_after_restore', False):
+                self.auto_load_game()
         except Exception as e:
             self.master.after(0, lambda: messagebox.showerror("错误", f"快速恢复失败：{str(e)}"))
             import traceback
@@ -408,6 +415,10 @@ class BackupManager:
                 shutil.copytree(os.path.join(backup_path, "data"), self.source_path, dirs_exist_ok=True)
             
             self.show_status(f"已从 {backup_name} 恢复存档")
+            
+            # 检查是否需要自动载入
+            if self.config['features'].get('auto_load_after_restore', False):
+                self.auto_load_game()
         except Exception as e:
             messagebox.showerror("错误", f"恢复失败：{str(e)}")
             import traceback
@@ -478,6 +489,30 @@ class BackupManager:
         self.source_path = self.config['paths']['source_path']
         self.backup_root = os.path.join(os.getcwd(), self.config['paths']['backup_root'])
 
+    def auto_load_game(self):
+        """自动载入游戏存档"""
+        try:
+            # 等待一段时间确保文件已经完全写入
+            time.sleep(1)
+            
+            # 查找血源诅咒窗口
+            hwnd = win32gui.FindWindow(None, "Bloodborne")
+            if hwnd:
+                # 激活窗口
+                win32gui.SetForegroundWindow(hwnd)
+                time.sleep(0.5)
+                
+                # 模拟按下OPTIONS键载入存档
+                keyboard.press_and_release('esc')
+                time.sleep(0.5)
+                keyboard.press_and_release('enter')
+                
+                self.show_status("已自动载入存档")
+            else:
+                self.show_status("未找到游戏窗口，请手动载入存档")
+        except Exception as e:
+            self.show_status(f"自动载入失败：{str(e)}")
+    
     def save_config(self):
         """保存配置文件"""
         try:
@@ -490,7 +525,7 @@ class BackupManager:
         """显示设置窗口"""
         settings_window = tk.Toplevel(self.master)
         settings_window.title("设置")
-        settings_window.geometry("400x350")
+        settings_window.geometry("400x450")
         settings_window.resizable(False, False)
         settings_window.transient(self.master)
         
@@ -536,6 +571,11 @@ class BackupManager:
         self.md5_var = tk.BooleanVar(value=self.config['features']['md5_deduplication'])
         ttk.Checkbutton(features_frame, text="启用MD5文件去重（节省存储空间）", 
                        variable=self.md5_var).pack(anchor=tk.W)
+        
+        # 自动载入选项
+        self.auto_load_var = tk.BooleanVar(value=self.config['features'].get('auto_load_after_restore', False))
+        ttk.Checkbutton(features_frame, text="恢复后自动载入存档", 
+                       variable=self.auto_load_var).pack(anchor=tk.W)
         
         # 添加保存按钮
         ttk.Button(settings_frame, text="保存", command=lambda: self.save_settings(settings_window, 
@@ -586,6 +626,7 @@ class BackupManager:
         
         # 更新功能设置
         self.config['features']['md5_deduplication'] = self.md5_var.get()
+        self.config['features']['auto_load_after_restore'] = self.auto_load_var.get()
         
         # 保存配置并重新加载
         self.save_config()
