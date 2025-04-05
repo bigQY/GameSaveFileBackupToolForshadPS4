@@ -12,7 +12,24 @@ from datetime import datetime
 from tkinter import messagebox
 
 from utils.file_utils import calculate_file_md5, ensure_dir, safe_filename
-from utils.system_utils import focus_window, simulate_key_press
+from utils.system_utils import simulate_key_press
+
+import win32gui
+
+def focus_window(window_title):
+    """模糊匹配窗口标题并聚焦窗口"""
+    def enum_windows_callback(hwnd, results):
+        if win32gui.IsWindowVisible(hwnd):
+            title = win32gui.GetWindowText(hwnd)
+            if window_title.lower() in title.lower():  # 模糊匹配
+                results.append(hwnd)
+
+    results = []
+    win32gui.EnumWindows(enum_windows_callback, results)
+    if results:
+        win32gui.SetForegroundWindow(results[0])
+        return True
+    return False
 
 
 class BackupManager:
@@ -104,7 +121,10 @@ class BackupManager:
                         
                         # 如果文件不在仓库中，则复制到仓库
                         if not os.path.exists(repo_file_path):
-                            shutil.copy2(src_file_path, repo_file_path)
+                            # 使用with语句确保文件句柄正确关闭
+                            with open(src_file_path, 'rb') as src_file:
+                                with open(repo_file_path, 'wb') as dest_file:
+                                    dest_file.write(src_file.read())
                         
                         # 记录文件元数据
                         file_metadata.append({
@@ -126,10 +146,11 @@ class BackupManager:
                     "type": "md5"
                 })
             else:
-                # 传统模式 - 直接复制文件
+                # 传统模式 - 使用安全的文件复制方法
                 ensure_dir(backup_dir)
                 data_dir = os.path.join(backup_dir, "data")
-                shutil.copytree(self.source_path, data_dir)
+                ensure_dir(data_dir)
+                self._safe_copy_tree(self.source_path, data_dir)
                 
                 # 记录备份元数据
                 self.backups.append({
@@ -186,7 +207,10 @@ class BackupManager:
                         
                         # 如果文件不在仓库中，则复制到仓库
                         if not os.path.exists(repo_file_path):
-                            shutil.copy2(src_file_path, repo_file_path)
+                            # 使用with语句确保文件句柄正确关闭
+                            with open(src_file_path, 'rb') as src_file:
+                                with open(repo_file_path, 'wb') as dest_file:
+                                    dest_file.write(src_file.read())
                         
                         # 记录文件元数据
                         file_metadata.append({
@@ -207,10 +231,11 @@ class BackupManager:
                     "type": "md5"
                 })
             else:
-                # 传统模式 - 直接复制文件
+                # 传统模式 - 使用安全的文件复制方法
                 ensure_dir(backup_dir)
                 data_dir = os.path.join(backup_dir, "data")
-                shutil.copytree(self.source_path, data_dir)
+                ensure_dir(data_dir)
+                self._safe_copy_tree(self.source_path, data_dir)
                 
                 # 记录备份元数据
                 self.backups.append({
@@ -310,8 +335,10 @@ class BackupManager:
                             corrupted_files.append(file_info["path"])
                             continue
                             
-                        # 从仓库复制文件
-                        shutil.copy2(repo_file_path, dest_file_path)
+                        # 从仓库复制文件 - 使用with语句确保文件句柄正确关闭
+                        with open(repo_file_path, 'rb') as src_file:
+                            with open(dest_file_path, 'wb') as dest_file:
+                                dest_file.write(src_file.read())
                         # 恢复文件的修改时间
                         os.utime(dest_file_path, (file_info["mtime"], file_info["mtime"]))
                     else:
@@ -335,8 +362,8 @@ class BackupManager:
                 if not os.path.exists(data_path):
                     return False, "备份数据目录不存在"
                     
-                # 使用dirs_exist_ok=True参数允许目标目录已存在
-                shutil.copytree(data_path, self.source_path, dirs_exist_ok=True)
+                # 自定义复制函数，确保文件句柄正确关闭
+                self._safe_copy_tree(data_path, self.source_path)
             
             # 检查是否需要自动载入
             if self.config['features'].get('auto_load_after_restore', False):
@@ -423,8 +450,10 @@ class BackupManager:
                             corrupted_files.append(file_info["path"])
                             continue
                             
-                        # 从仓库复制文件
-                        shutil.copy2(repo_file_path, dest_file_path)
+                        # 从仓库复制文件 - 使用with语句确保文件句柄正确关闭
+                        with open(repo_file_path, 'rb') as src_file:
+                            with open(dest_file_path, 'wb') as dest_file:
+                                dest_file.write(src_file.read())
                         # 恢复文件的修改时间
                         os.utime(dest_file_path, (file_info["mtime"], file_info["mtime"]))
                     else:
@@ -448,8 +477,8 @@ class BackupManager:
                 if not os.path.exists(data_path):
                     return False, "备份数据目录不存在"
                     
-                # 使用dirs_exist_ok=True参数允许目标目录已存在
-                shutil.copytree(data_path, self.source_path, dirs_exist_ok=True)
+                # 自定义复制函数，确保文件句柄正确关闭
+                self._safe_copy_tree(data_path, self.source_path)
             
             # 检查是否需要自动载入
             if self.config['features'].get('auto_load_after_restore', False):
@@ -565,21 +594,55 @@ class BackupManager:
             traceback.print_exc()
             return False, f"创建副本失败：{str(e)}"
     
+    def _safe_copy_tree(self, src, dst):
+        """安全地复制目录树，确保所有文件句柄都被正确关闭
+        
+        Args:
+            src: 源目录路径
+            dst: 目标目录路径
+        """
+        # 确保目标目录存在
+        ensure_dir(dst)
+        
+        # 遍历源目录
+        for item in os.listdir(src):
+            s = os.path.join(src, item)
+            d = os.path.join(dst, item)
+            
+            if os.path.isdir(s):
+                # 如果是目录，递归复制
+                self._safe_copy_tree(s, d)
+            else:
+                # 如果是文件，使用with语句确保文件句柄正确关闭
+                ensure_dir(os.path.dirname(d))
+                with open(s, 'rb') as src_file:
+                    with open(d, 'wb') as dst_file:
+                        dst_file.write(src_file.read())
+                # 保留文件的修改时间和访问时间
+                os.utime(d, (os.path.getatime(s), os.path.getmtime(s)))
+    
     def auto_load_game(self):
         """自动载入游戏存档"""
         try:
             # 等待一段时间确保文件已经完全写入
             import time
             time.sleep(1)
-            
             # 查找血源诅咒窗口
             if focus_window("Bloodborne"):
-                time.sleep(0.5)
-                
                 # 模拟按下OPTIONS键载入存档
-                simulate_key_press('esc')
-                time.sleep(0.5)
                 simulate_key_press('enter')
+                # 右方向键
+                simulate_key_press('right')
+                simulate_key_press('right')
+                # 确定键
+                simulate_key_press('b')
+                simulate_key_press('up')
+                simulate_key_press('b')
+                simulate_key_press('left')
+                simulate_key_press('b')
+                time.sleep(2)
+                simulate_key_press('b')
+                simulate_key_press('b')
                 
                 return True, "已自动载入存档"
             else:
