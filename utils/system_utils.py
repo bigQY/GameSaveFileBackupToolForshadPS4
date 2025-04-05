@@ -11,6 +11,16 @@ import win32gui
 import win32con
 import time
 
+# 导入PyDirectInput库用于更可靠的游戏按键模拟
+try:
+    import pydirectinput
+    pydirectinput.PAUSE = 0.1  # 设置按键间隔，避免按键过快
+    HAS_PYDIRECTINPUT = True
+except ImportError:
+    HAS_PYDIRECTINPUT = False
+    print("警告: PyDirectInput库未安装，将使用keyboard库作为备选方案")
+    print("建议安装PyDirectInput以获得更好的游戏兼容性: pip install pydirectinput")
+
 
 def is_process_running(process_name):
     """检查指定进程是否在运行
@@ -72,7 +82,7 @@ def focus_window(window_title):
     return False
 
 
-def simulate_key_press(key, delay=0.5):
+def simulate_key_press(key, delay=0.005):
     """模拟按键
     
     Args:
@@ -80,5 +90,16 @@ def simulate_key_press(key, delay=0.5):
         delay: 按键前后的延迟时间（秒）
     """
     time.sleep(delay)
-    keyboard.press_and_release(key)
+    
+    # 优先使用PyDirectInput库，它更适合游戏输入
+    if HAS_PYDIRECTINPUT:
+        try:
+            pydirectinput.press(key)
+        except Exception as e:
+            print(f"PyDirectInput按键失败: {str(e)}，尝试使用keyboard库")
+            keyboard.press_and_release(key)
+    else:
+        # 备选方案：使用keyboard库
+        keyboard.press_and_release(key)
+        
     time.sleep(delay)

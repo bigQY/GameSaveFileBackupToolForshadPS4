@@ -15,9 +15,10 @@ from utils.file_utils import calculate_file_md5, ensure_dir, safe_filename
 from utils.system_utils import simulate_key_press
 
 import win32gui
+import win32con
 
 def focus_window(window_title):
-    """模糊匹配窗口标题并聚焦窗口"""
+    """模糊匹配窗口标题并聚焦窗口，使用增强的窗口激活方法"""
     def enum_windows_callback(hwnd, results):
         if win32gui.IsWindowVisible(hwnd):
             title = win32gui.GetWindowText(hwnd)
@@ -27,8 +28,26 @@ def focus_window(window_title):
     results = []
     win32gui.EnumWindows(enum_windows_callback, results)
     if results:
-        win32gui.SetForegroundWindow(results[0])
-        return True
+        hwnd = results[0]
+        # 尝试多种方法激活窗口
+        try:
+            # 确保窗口不是最小化的
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            # 将窗口置于前台
+            win32gui.SetForegroundWindow(hwnd)
+            # 额外尝试置顶窗口
+            win32gui.BringWindowToTop(hwnd)
+            # 使用ALT+TAB切换到窗口
+            import time
+            time.sleep(0.5)
+            # 尝试再次激活窗口
+            win32gui.SetForegroundWindow(hwnd)
+            # 给系统更多时间来响应
+            time.sleep(1.0)
+            return True
+        except Exception as e:
+            print(f"激活窗口失败: {str(e)}")
+            return False
     return False
 
 
@@ -626,23 +645,38 @@ class BackupManager:
         try:
             # 等待一段时间确保文件已经完全写入
             import time
-            time.sleep(1)
-            # 查找血源诅咒窗口
-            if focus_window("Bloodborne"):
+            # 尝试多个可能的窗口标题
+            window_titles = ["Bloodborne", "BLOODBORNE", "血源诅咒", "血源"]
+            window_found = False
+            
+            # 多次尝试查找窗口
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                for title in window_titles:
+                    if focus_window(title):
+                        window_found = True
+                        # 给窗口更多时间来响应
+                        time.sleep(1.0)
+                        break
+                if window_found:
+                    break
+                time.sleep(0.5)  # 等待一段时间再次尝试
+            
+            if window_found:
                 # 模拟按下OPTIONS键载入存档
-                simulate_key_press('enter')
+                simulate_key_press('enter', 0.05)  # 增加延时确保按键被识别
                 # 右方向键
-                simulate_key_press('right')
-                simulate_key_press('right')
+                simulate_key_press('right', 0.05)
+                simulate_key_press('right', 0.05)
                 # 确定键
-                simulate_key_press('b')
-                simulate_key_press('up')
-                simulate_key_press('b')
-                simulate_key_press('left')
-                simulate_key_press('b')
-                time.sleep(2)
-                simulate_key_press('b')
-                simulate_key_press('b')
+                simulate_key_press('b', 0.05)
+                simulate_key_press('up',0.05)
+                simulate_key_press('b', 0.05)
+                simulate_key_press('left', 0.05)
+                simulate_key_press('b', 0.05)
+                time.sleep(2.5)  # 增加等待时间
+                simulate_key_press('b', 0.05)
+                simulate_key_press('b', 0.05)
                 
                 return True, "已自动载入存档"
             else:

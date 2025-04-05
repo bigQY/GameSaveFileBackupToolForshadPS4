@@ -27,7 +27,7 @@ class BackupManagerUI:
             master: tkinter主窗口
         """
         self.master = master
-        master.title("存档管理工具 v4.0 - MD5去重版")
+        master.title("SaveGuard v4.0 - 存档守护者")
         master.geometry("600x400")
         
         # 初始化配置管理器

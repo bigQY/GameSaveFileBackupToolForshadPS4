@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-存档管理工具 - 主程序入口
+SaveGuard - 存档守护者
+游戏存档备份管理工具的主程序入口
 """
 
 import tkinter as tk
