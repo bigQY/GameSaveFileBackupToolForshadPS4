@@ -6,5 +6,8 @@
     "paths": {
         "source_path": "D:\\games\\shadPS4\\user\\savedata\\1\\CUSA03023\\SPRJ0005",
         "backup_root": "backups"
+    },
+    "features": {
+        "md5_deduplication": true
     }
 }

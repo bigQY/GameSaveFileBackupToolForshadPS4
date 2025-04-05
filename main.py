@@ -7,13 +7,14 @@ from datetime import datetime
 import psutil
 import keyboard
 import threading
+import hashlib
+from pathlib import Path
 
 class BackupManager:
     def __init__(self, master):
         self.master = master
-        master.title("存档管理工具 v3.0")
+        master.title("存档管理工具 v4.0 - MD5去重版")
         master.geometry("600x400")
-        master.resizable(False, False)
         
         # 加载配置文件
         self.config_file = "config.json"
@@ -22,6 +23,10 @@ class BackupManager:
         # 初始化路径和配置
         os.makedirs(self.backup_root, exist_ok=True)
         self.metadata_file = os.path.join(self.backup_root, "backups.json")
+        
+        # 初始化文件仓库路径
+        self.file_repository = os.path.join(self.backup_root, "repository")
+        os.makedirs(self.file_repository, exist_ok=True)
         
         # 加载备份记录
         self.backups = self.load_backups()
@@ -46,8 +51,12 @@ class BackupManager:
         backup_frame = ttk.LabelFrame(main_frame, text="创建备份", padding=10)
         backup_frame.grid(row=0, column=0, sticky="ew", pady=5)
         
-        # 添加设置按钮
-        ttk.Button(backup_frame, text="设置", command=self.show_settings).pack(side=tk.RIGHT, padx=5)
+        # 添加设置按钮和统计按钮
+        buttons_frame = ttk.Frame(backup_frame)
+        buttons_frame.pack(side=tk.RIGHT)
+        
+        ttk.Button(buttons_frame, text="存储统计", command=self.show_storage_stats).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="设置", command=self.show_settings).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(backup_frame, text="新建备份", command=self.create_backup).pack(side=tk.LEFT)
         ttk.Label(backup_frame, text="备份名称：").pack(side=tk.LEFT, padx=5)
@@ -124,19 +133,73 @@ class BackupManager:
             backup_name = f"快速备份_{timestamp}"
             backup_dir = os.path.join(self.backup_root, f"quick_{timestamp}")
             
-            os.makedirs(backup_dir, exist_ok=True)
-            shutil.copytree(self.source_path, os.path.join(backup_dir, "data"))
+            # 检查是否启用MD5去重
+            use_md5 = self.config['features']['md5_deduplication']
             
-            self.backups.append({
-                "name": backup_name,
-                "date": datetime.now().isoformat(),
-                "path": backup_dir
-            })
+            if use_md5:
+                # MD5去重模式
+                metadata_dir = os.path.join(backup_dir, "metadata")
+                os.makedirs(metadata_dir, exist_ok=True)
+                
+                # 存储文件元数据信息
+                file_metadata = []
+                
+                # 遍历源目录中的所有文件
+                for root, _, files in os.walk(self.source_path):
+                    for file in files:
+                        src_file_path = os.path.join(root, file)
+                        # 计算相对路径
+                        rel_path = os.path.relpath(src_file_path, self.source_path)
+                        
+                        # 计算文件MD5
+                        file_md5 = self.calculate_file_md5(src_file_path)
+                        
+                        # 仓库中的文件路径
+                        repo_file_path = os.path.join(self.file_repository, file_md5)
+                        
+                        # 如果文件不在仓库中，则复制到仓库
+                        if not os.path.exists(repo_file_path):
+                            shutil.copy2(src_file_path, repo_file_path)
+                        
+                        # 记录文件元数据
+                        file_metadata.append({
+                            "path": rel_path,
+                            "md5": file_md5,
+                            "size": os.path.getsize(src_file_path),
+                            "mtime": os.path.getmtime(src_file_path)
+                        })
+                
+                # 保存文件元数据
+                with open(os.path.join(metadata_dir, "files.json"), "w", encoding="utf-8") as f:
+                    json.dump(file_metadata, f, ensure_ascii=False, indent=2)
+                
+                self.backups.append({
+                    "name": backup_name,
+                    "date": datetime.now().isoformat(),
+                    "path": backup_dir,
+                    "type": "md5"
+                })
+            else:
+                # 传统模式 - 直接复制文件
+                os.makedirs(backup_dir, exist_ok=True)
+                data_dir = os.path.join(backup_dir, "data")
+                shutil.copytree(self.source_path, data_dir)
+                
+                # 记录备份元数据
+                self.backups.append({
+                    "name": backup_name,
+                    "date": datetime.now().isoformat(),
+                    "path": backup_dir,
+                    "type": "legacy"
+                })
+                
             self.save_backups()
             self.update_backup_list()
             self.show_status(f"快速备份成功：{backup_name}")
         except Exception as e:
             self.master.after(0, lambda: messagebox.showerror("错误", f"快速备份失败：{str(e)}"))
+            import traceback
+            traceback.print_exc()
 
     def quick_restore(self):
         """快速恢复最新备份"""
@@ -146,16 +209,58 @@ class BackupManager:
 
         try:
             latest = max(self.backups, key=lambda x: x["date"])
-            backup_path = os.path.join(latest["path"], "data")
+            backup_path = latest["path"]
             
+            # 清空目标目录
             if os.path.exists(self.source_path):
                 shutil.rmtree(self.source_path)
-            shutil.copytree(backup_path, self.source_path)
+            os.makedirs(self.source_path, exist_ok=True)
+            
+            # 检查备份类型，处理MD5去重备份
+            if latest.get("type") == "md5":
+                metadata_file = os.path.join(backup_path, "metadata", "files.json")
+                if not os.path.exists(metadata_file):
+                    self.show_status("备份元数据文件不存在")
+                    return
+                
+                # 加载文件元数据
+                with open(metadata_file, "r", encoding="utf-8") as f:
+                    file_metadata = json.load(f)
+                
+                # 根据元数据恢复文件
+                for file_info in file_metadata:
+                    # 目标文件路径
+                    dest_file_path = os.path.join(self.source_path, file_info["path"])
+                    # 确保目标目录存在
+                    os.makedirs(os.path.dirname(dest_file_path), exist_ok=True)
+                    
+                    # 仓库中的文件路径
+                    repo_file_path = os.path.join(self.file_repository, file_info["md5"])
+                    
+                    if os.path.exists(repo_file_path):
+                        # 从仓库复制文件
+                        shutil.copy2(repo_file_path, dest_file_path)
+                        # 恢复文件的修改时间
+                        os.utime(dest_file_path, (file_info["mtime"], file_info["mtime"]))
+            else:
+                # 处理旧版备份格式
+                # 使用dirs_exist_ok=True参数允许目标目录已存在
+                shutil.copytree(os.path.join(backup_path, "data"), self.source_path, dirs_exist_ok=True)
             
             self.show_status(f"已快速恢复：{latest['name']}")
         except Exception as e:
             self.master.after(0, lambda: messagebox.showerror("错误", f"快速恢复失败：{str(e)}"))
+            import traceback
+            traceback.print_exc()
 
+    def calculate_file_md5(self, file_path):
+        """计算文件的MD5哈希值"""
+        hash_md5 = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()
+    
     def create_backup(self):
         """创建新备份"""
         if not os.path.exists(self.source_path):
@@ -169,17 +274,68 @@ class BackupManager:
         try:
             # 创建备份目录
             backup_dir = os.path.join(self.backup_root, f"{safe_name}_{timestamp}")
-            os.makedirs(backup_dir, exist_ok=True)
             
-            # 复制文件
-            shutil.copytree(self.source_path, os.path.join(backup_dir, "data"))
+            # 检查是否启用MD5去重
+            use_md5 = self.config['features']['md5_deduplication']
             
-            # 记录元数据
-            self.backups.append({
-                "name": backup_name,
-                "date": datetime.now().isoformat(),
-                "path": backup_dir
-            })
+            if use_md5:
+                # MD5去重模式
+                metadata_dir = os.path.join(backup_dir, "metadata")
+                os.makedirs(metadata_dir, exist_ok=True)
+                
+                # 存储文件元数据信息
+                file_metadata = []
+                
+                # 遍历源目录中的所有文件
+                for root, _, files in os.walk(self.source_path):
+                    for file in files:
+                        src_file_path = os.path.join(root, file)
+                        # 计算相对路径
+                        rel_path = os.path.relpath(src_file_path, self.source_path)
+                        
+                        # 计算文件MD5
+                        file_md5 = self.calculate_file_md5(src_file_path)
+                        
+                        # 仓库中的文件路径
+                        repo_file_path = os.path.join(self.file_repository, file_md5)
+                        
+                        # 如果文件不在仓库中，则复制到仓库
+                        if not os.path.exists(repo_file_path):
+                            shutil.copy2(src_file_path, repo_file_path)
+                        
+                        # 记录文件元数据
+                        file_metadata.append({
+                            "path": rel_path,
+                            "md5": file_md5,
+                            "size": os.path.getsize(src_file_path),
+                            "mtime": os.path.getmtime(src_file_path)
+                        })
+                
+                # 保存文件元数据
+                with open(os.path.join(metadata_dir, "files.json"), "w", encoding="utf-8") as f:
+                    json.dump(file_metadata, f, ensure_ascii=False, indent=2)
+                
+                # 记录备份元数据
+                self.backups.append({
+                    "name": backup_name,
+                    "date": datetime.now().isoformat(),
+                    "path": backup_dir,
+                    "type": "md5"
+                })
+            else:
+                # 传统模式 - 直接复制文件
+                os.makedirs(backup_dir, exist_ok=True)
+                data_dir = os.path.join(backup_dir, "data")
+                shutil.copytree(self.source_path, data_dir)
+                
+                # 记录备份元数据
+                self.backups.append({
+                    "name": backup_name,
+                    "date": datetime.now().isoformat(),
+                    "path": backup_dir,
+                    "type": "legacy"
+                })
+                
             self.save_backups()
             
             self.update_backup_list()
@@ -187,6 +343,8 @@ class BackupManager:
             self.backup_name.delete(0, tk.END)
         except Exception as e:
             messagebox.showerror("错误", f"备份失败：{str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def restore_backup(self):
         """恢复选中备份"""
@@ -198,17 +356,62 @@ class BackupManager:
         try:
             item = self.tree.item(selected[0])
             backup_path = item["values"][2]
+            backup_name = item["values"][0]
+            
+            # 获取备份的详细信息
+            backup_info = None
+            for backup in self.backups:
+                if backup["path"] == backup_path:
+                    backup_info = backup
+                    break
+            
+            if not backup_info:
+                messagebox.showerror("错误", "找不到备份信息")
+                return
             
             # 清空目标目录
             if os.path.exists(self.source_path):
                 shutil.rmtree(self.source_path)
-                
-            # 复制备份数据
-            shutil.copytree(os.path.join(backup_path, "data"), self.source_path)
+            os.makedirs(self.source_path, exist_ok=True)
             
-            self.show_status(f"已从 {item['values'][0]} 恢复存档")
+            # 检查备份类型，处理MD5去重备份
+            if backup_info.get("type") == "md5":
+                metadata_file = os.path.join(backup_path, "metadata", "files.json")
+                if not os.path.exists(metadata_file):
+                    messagebox.showerror("错误", "备份元数据文件不存在")
+                    return
+                
+                # 加载文件元数据
+                with open(metadata_file, "r", encoding="utf-8") as f:
+                    file_metadata = json.load(f)
+                
+                # 根据元数据恢复文件
+                for file_info in file_metadata:
+                    # 目标文件路径
+                    dest_file_path = os.path.join(self.source_path, file_info["path"])
+                    # 确保目标目录存在
+                    os.makedirs(os.path.dirname(dest_file_path), exist_ok=True)
+                    
+                    # 仓库中的文件路径
+                    repo_file_path = os.path.join(self.file_repository, file_info["md5"])
+                    
+                    if os.path.exists(repo_file_path):
+                        # 从仓库复制文件
+                        shutil.copy2(repo_file_path, dest_file_path)
+                        # 恢复文件的修改时间
+                        os.utime(dest_file_path, (file_info["mtime"], file_info["mtime"]))
+                    else:
+                        messagebox.showwarning("警告", f"仓库中找不到文件: {file_info['path']}")
+            else:
+                # 处理旧版备份格式
+                # 使用dirs_exist_ok=True参数允许目标目录已存在
+                shutil.copytree(os.path.join(backup_path, "data"), self.source_path, dirs_exist_ok=True)
+            
+            self.show_status(f"已从 {backup_name} 恢复存档")
         except Exception as e:
             messagebox.showerror("错误", f"恢复失败：{str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def update_backup_list(self):
         """更新备份列表显示"""
@@ -253,6 +456,9 @@ class BackupManager:
                     'paths': {
                         'source_path': r"D:\games\shadPS4\user\savedata\1\CUSA03023\SPRJ0005",
                         'backup_root': 'backups'
+                    },
+                    'features': {
+                        'md5_deduplication': True
                     }
                 }
                 self.save_config()
@@ -263,6 +469,9 @@ class BackupManager:
                 'paths': {
                     'source_path': r"D:\games\shadPS4\user\savedata\1\CUSA03023\SPRJ0005",
                     'backup_root': 'backups'
+                },
+                'features': {
+                    'md5_deduplication': True
                 }
             }
         
@@ -281,7 +490,7 @@ class BackupManager:
         """显示设置窗口"""
         settings_window = tk.Toplevel(self.master)
         settings_window.title("设置")
-        settings_window.geometry("400x300")
+        settings_window.geometry("400x350")
         settings_window.resizable(False, False)
         settings_window.transient(self.master)
         
@@ -318,6 +527,15 @@ class BackupManager:
         self.backup_path_entry.insert(0, self.config['paths']['backup_root'])
         self.backup_path_entry.grid(row=1, column=1, padx=5)
         ttk.Button(paths_frame, text="浏览", command=lambda: self.browse_directory(self.backup_path_entry)).grid(row=1, column=2)
+        
+        # 功能设置
+        features_frame = ttk.LabelFrame(settings_frame, text="功能设置", padding=10)
+        features_frame.pack(fill=tk.X, pady=5)
+        
+        # MD5去重选项
+        self.md5_var = tk.BooleanVar(value=self.config['features']['md5_deduplication'])
+        ttk.Checkbutton(features_frame, text="启用MD5文件去重（节省存储空间）", 
+                       variable=self.md5_var).pack(anchor=tk.W)
         
         # 添加保存按钮
         ttk.Button(settings_frame, text="保存", command=lambda: self.save_settings(settings_window, 
@@ -366,6 +584,9 @@ class BackupManager:
         self.config['paths']['source_path'] = source_path
         self.config['paths']['backup_root'] = backup_path
         
+        # 更新功能设置
+        self.config['features']['md5_deduplication'] = self.md5_var.get()
+        
         # 保存配置并重新加载
         self.save_config()
         self.load_config()
@@ -381,6 +602,58 @@ class BackupManager:
         if directory:
             entry_widget.delete(0, tk.END)
             entry_widget.insert(0, directory)
+            
+    def show_storage_stats(self):
+        """显示存储统计信息"""
+        if not self.backups:
+            messagebox.showinfo("统计信息", "当前没有备份数据")
+            return
+            
+        try:
+            # 统计信息
+            backup_count = len(self.backups)
+            md5_backup_count = len([b for b in self.backups if b.get("type") == "md5"])
+            
+            # 计算仓库中的文件数量和总大小
+            repo_files = os.listdir(self.file_repository)
+            repo_size = sum(os.path.getsize(os.path.join(self.file_repository, f)) for f in repo_files)
+            
+            # 计算所有备份中的文件总数和理论大小（如果不去重）
+            total_files = 0
+            theoretical_size = 0
+            
+            for backup in self.backups:
+                if backup.get("type") == "md5":
+                    metadata_file = os.path.join(backup["path"], "metadata", "files.json")
+                    if os.path.exists(metadata_file):
+                        with open(metadata_file, "r", encoding="utf-8") as f:
+                            file_metadata = json.load(f)
+                            total_files += len(file_metadata)
+                            theoretical_size += sum(file_info["size"] for file_info in file_metadata)
+            
+            # 计算节省的空间
+            saved_space = theoretical_size - repo_size if theoretical_size > repo_size else 0
+            saved_percentage = (saved_space / theoretical_size * 100) if theoretical_size > 0 else 0
+            
+            # 格式化大小显示
+            def format_size(size_bytes):
+                for unit in ['B', 'KB', 'MB', 'GB']:
+                    if size_bytes < 1024 or unit == 'GB':
+                        return f"{size_bytes:.2f} {unit}"
+                    size_bytes /= 1024
+            
+            # 显示统计信息
+            stats_message = f"备份总数: {backup_count} (MD5去重: {md5_backup_count})\n\n"
+            stats_message += f"文件仓库大小: {format_size(repo_size)}\n"
+            stats_message += f"备份文件总数: {total_files}\n"
+            stats_message += f"理论占用空间: {format_size(theoretical_size)}\n\n"
+            stats_message += f"节省空间: {format_size(saved_space)} ({saved_percentage:.1f}%)\n"
+            
+            messagebox.showinfo("存储统计", stats_message)
+        except Exception as e:
+            messagebox.showerror("错误", f"计算统计信息失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def on_close(self):
         """窗口关闭时的清理"""
@@ -474,21 +747,54 @@ class BackupManager:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             new_name = f"{src_name}_副本"
             new_path = os.path.join(self.backup_root, f"{new_name}_{timestamp}")
-
-            # 复制备份文件
-            shutil.copytree(src_path, new_path)
+            
+            # 获取源备份的详细信息
+            src_backup = None
+            for backup in self.backups:
+                if backup["path"] == src_path:
+                    src_backup = backup
+                    break
+                    
+            if not src_backup:
+                messagebox.showerror("错误", "找不到源备份信息")
+                return
+                
+            # 检查备份类型
+            if src_backup.get("type") == "md5":
+                # 创建元数据目录
+                metadata_dir = os.path.join(new_path, "metadata")
+                os.makedirs(metadata_dir, exist_ok=True)
+                
+                # 复制元数据文件
+                src_metadata_file = os.path.join(src_path, "metadata", "files.json")
+                if os.path.exists(src_metadata_file):
+                    with open(src_metadata_file, "r", encoding="utf-8") as f:
+                        file_metadata = json.load(f)
+                    
+                    # 保存到新备份
+                    with open(os.path.join(metadata_dir, "files.json"), "w", encoding="utf-8") as f:
+                        json.dump(file_metadata, f, ensure_ascii=False, indent=2)
+                else:
+                    messagebox.showwarning("警告", "源备份的元数据文件不存在")
+                    return
+            else:
+                # 旧版备份格式，直接复制
+                shutil.copytree(src_path, new_path)
 
             # 更新备份记录
             self.backups.append({
                 "name": new_name,
                 "date": datetime.now().isoformat(),
-                "path": new_path
+                "path": new_path,
+                "type": src_backup.get("type", "legacy")
             })
             self.save_backups()
             self.update_backup_list()
             self.show_status(f"已创建副本：{new_name}")
         except Exception as e:
             messagebox.showerror("错误", f"创建副本失败：{str(e)}")
+            import traceback
+            traceback.print_exc()
 
 if __name__ == "__main__":
     root = tk.Tk()
