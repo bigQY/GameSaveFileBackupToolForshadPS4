@@ -66,6 +66,16 @@ class BackupManager:
         self.tree.column("path", width=300)
         self.tree.pack(fill=tk.BOTH, expand=True)
 
+        # 创建右键菜单
+        self.context_menu = tk.Menu(self.master, tearoff=0)
+        self.context_menu.add_command(label="重命名", command=self.rename_backup)
+        self.context_menu.add_command(label="复制", command=self.duplicate_backup)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="删除", command=self.delete_backup)
+
+        # 绑定右键菜单
+        self.tree.bind("<Button-3>", self.show_context_menu)
+
         # 滚动条
         scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscroll=scrollbar.set)
@@ -92,7 +102,6 @@ class BackupManager:
                     self.master.after(0, hotkey_func)
             return wrapper
 
-        keyboard.unhook_all_hotkeys()
         keyboard.add_hotkey(self.config['hotkeys']['quick_backup'], check_and_run(self.quick_backup))
         keyboard.add_hotkey(self.config['hotkeys']['quick_restore'], check_and_run(self.quick_restore))
 
@@ -285,45 +294,86 @@ class BackupManager:
         hotkeys_frame.pack(fill=tk.X, pady=5)
         
         ttk.Label(hotkeys_frame, text="快速备份：").grid(row=0, column=0, sticky=tk.W)
-        backup_key = ttk.Entry(hotkeys_frame, width=10)
-        backup_key.insert(0, self.config['hotkeys']['quick_backup'])
-        backup_key.grid(row=0, column=1, padx=5)
+        self.backup_key_label = ttk.Label(hotkeys_frame, text=self.config['hotkeys']['quick_backup'], width=10, relief="sunken")
+        self.backup_key_label.grid(row=0, column=1, padx=5)
+        ttk.Button(hotkeys_frame, text="设置", command=lambda: self.start_key_listening('quick_backup')).grid(row=0, column=2)
         
         ttk.Label(hotkeys_frame, text="快速恢复：").grid(row=1, column=0, sticky=tk.W)
-        restore_key = ttk.Entry(hotkeys_frame, width=10)
-        restore_key.insert(0, self.config['hotkeys']['quick_restore'])
-        restore_key.grid(row=1, column=1, padx=5)
+        self.restore_key_label = ttk.Label(hotkeys_frame, text=self.config['hotkeys']['quick_restore'], width=10, relief="sunken")
+        self.restore_key_label.grid(row=1, column=1, padx=5)
+        ttk.Button(hotkeys_frame, text="设置", command=lambda: self.start_key_listening('quick_restore')).grid(row=1, column=2)
         
         # 路径设置
         paths_frame = ttk.LabelFrame(settings_frame, text="路径设置", padding=10)
         paths_frame.pack(fill=tk.X, pady=5)
         
         ttk.Label(paths_frame, text="存档目录：").grid(row=0, column=0, sticky=tk.W)
-        source_path = ttk.Entry(paths_frame, width=30)
-        source_path.insert(0, self.config['paths']['source_path'])
-        source_path.grid(row=0, column=1, padx=5)
-        ttk.Button(paths_frame, text="浏览", command=lambda: self.browse_directory(source_path)).grid(row=0, column=2)
+        self.source_path_entry = ttk.Entry(paths_frame, width=30)
+        self.source_path_entry.insert(0, self.config['paths']['source_path'])
+        self.source_path_entry.grid(row=0, column=1, padx=5)
+        ttk.Button(paths_frame, text="浏览", command=lambda: self.browse_directory(self.source_path_entry)).grid(row=0, column=2)
         
         ttk.Label(paths_frame, text="备份目录：").grid(row=1, column=0, sticky=tk.W)
-        backup_path = ttk.Entry(paths_frame, width=30)
-        backup_path.insert(0, self.config['paths']['backup_root'])
-        backup_path.grid(row=1, column=1, padx=5)
-        ttk.Button(paths_frame, text="浏览", command=lambda: self.browse_directory(backup_path)).grid(row=1, column=2)
+        self.backup_path_entry = ttk.Entry(paths_frame, width=30)
+        self.backup_path_entry.insert(0, self.config['paths']['backup_root'])
+        self.backup_path_entry.grid(row=1, column=1, padx=5)
+        ttk.Button(paths_frame, text="浏览", command=lambda: self.browse_directory(self.backup_path_entry)).grid(row=1, column=2)
         
-        # 保存按钮
-        def save_settings():
-            self.config['hotkeys']['quick_backup'] = backup_key.get()
-            self.config['hotkeys']['quick_restore'] = restore_key.get()
-            self.config['paths']['source_path'] = source_path.get()
-            self.config['paths']['backup_root'] = backup_path.get()
-            
-            self.save_config()
-            self.load_config()
-            self.setup_hotkeys()
-            settings_window.destroy()
-            messagebox.showinfo("提示", "设置已保存")
+        # 添加保存按钮
+        ttk.Button(settings_frame, text="保存", command=lambda: self.save_settings(settings_window, 
+                                                                self.source_path_entry.get(),
+                                                                self.backup_path_entry.get())).pack(pady=10)
+
+    def start_key_listening(self, key_type):
+        """开始监听键盘输入"""
+        # 先解除当前快捷键的绑定
+        keyboard.remove_hotkey(self.config['hotkeys'][key_type])
         
-        ttk.Button(settings_frame, text="保存", command=save_settings).pack(pady=10)
+        def on_key_event(e):
+            # 获取按键名称
+            key_name = e.name
+            if key_name not in ['shift', 'ctrl', 'alt']:
+                # 检查按键是否已被使用
+                other_key = 'quick_restore' if key_type == 'quick_backup' else 'quick_backup'
+                if key_name == self.config['hotkeys'][other_key]:
+                    messagebox.showwarning("警告", "该快捷键已被其他功能使用")
+                    return
+                
+                # 更新配置
+                self.config['hotkeys'][key_type] = key_name
+                # 更新显示
+                if key_type == 'quick_backup':
+                    self.backup_key_label.config(text=key_name)
+                else:
+                    self.restore_key_label.config(text=key_name)
+                # 移除监听器
+                keyboard.unhook(hook)
+                # 更新热键设置
+                self.setup_hotkeys()
+                
+        # 添加按键监听
+        hook = keyboard.on_press(on_key_event)
+        
+        # 更新状态提示
+        if key_type == 'quick_backup':
+            self.backup_key_label.config(text="请按键...")
+        else:
+            self.restore_key_label.config(text="请按键...")
+    
+    def save_settings(self, settings_window, source_path, backup_path):
+        """保存设置"""
+        # 更新路径设置
+        self.config['paths']['source_path'] = source_path
+        self.config['paths']['backup_root'] = backup_path
+        
+        # 保存配置并重新加载
+        self.save_config()
+        self.load_config()
+        self.setup_hotkeys()
+        
+        # 关闭设置窗口
+        settings_window.destroy()
+        messagebox.showinfo("提示", "设置已保存")
 
     def browse_directory(self, entry_widget):
         """浏览文件夹"""
@@ -336,6 +386,109 @@ class BackupManager:
         """窗口关闭时的清理"""
         keyboard.unhook_all_hotkeys()
         self.master.destroy()
+
+    def show_context_menu(self, event):
+        """显示右键菜单"""
+        # 获取鼠标点击的项
+        item = self.tree.identify_row(event.y)
+        if item:
+            # 选中被点击的项
+            self.tree.selection_set(item)
+            # 显示右键菜单
+            self.context_menu.post(event.x_root, event.y_root)
+
+    def rename_backup(self):
+        """重命名备份"""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item = self.tree.item(selected[0])
+        old_name = item['values'][0]
+        old_path = item['values'][2]
+
+        # 弹出重命名对话框
+        dialog = tk.Toplevel(self.master)
+        dialog.title("重命名备份")
+        dialog.geometry("300x100")
+        dialog.transient(self.master)
+        dialog.grab_set()
+
+        ttk.Label(dialog, text="新名称：").pack(pady=5)
+        entry = ttk.Entry(dialog, width=30)
+        entry.insert(0, old_name)
+        entry.pack(pady=5)
+        entry.select_range(0, tk.END)
+
+        def do_rename():
+            new_name = entry.get().strip()
+            if new_name and new_name != old_name:
+                # 更新备份记录
+                for backup in self.backups:
+                    if backup['path'] == old_path:
+                        backup['name'] = new_name
+                        break
+                self.save_backups()
+                self.update_backup_list()
+                self.show_status(f"已重命名：{old_name} -> {new_name}")
+            dialog.destroy()
+
+        ttk.Button(dialog, text="确定", command=do_rename).pack(pady=5)
+        entry.bind("<Return>", lambda e: do_rename())
+        entry.focus()
+
+    def delete_backup(self):
+        """删除备份"""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item = self.tree.item(selected[0])
+        backup_name = item['values'][0]
+        backup_path = item['values'][2]
+
+        if messagebox.askyesno("确认删除", f"确定要删除备份 '{backup_name}' 吗？"):
+            try:
+                # 删除备份文件
+                shutil.rmtree(backup_path)
+                # 更新备份记录
+                self.backups = [b for b in self.backups if b['path'] != backup_path]
+                self.save_backups()
+                self.update_backup_list()
+                self.show_status(f"已删除备份：{backup_name}")
+            except Exception as e:
+                messagebox.showerror("错误", f"删除失败：{str(e)}")
+
+    def duplicate_backup(self):
+        """复制备份"""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item = self.tree.item(selected[0])
+        src_name = item['values'][0]
+        src_path = item['values'][2]
+
+        try:
+            # 创建新的备份名称和路径
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            new_name = f"{src_name}_副本"
+            new_path = os.path.join(self.backup_root, f"{new_name}_{timestamp}")
+
+            # 复制备份文件
+            shutil.copytree(src_path, new_path)
+
+            # 更新备份记录
+            self.backups.append({
+                "name": new_name,
+                "date": datetime.now().isoformat(),
+                "path": new_path
+            })
+            self.save_backups()
+            self.update_backup_list()
+            self.show_status(f"已创建副本：{new_name}")
+        except Exception as e:
+            messagebox.showerror("错误", f"创建副本失败：{str(e)}")
 
 if __name__ == "__main__":
     root = tk.Tk()
