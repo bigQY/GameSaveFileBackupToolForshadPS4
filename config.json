@@ -1,0 +1,10 @@
+{
+    "hotkeys": {
+        "quick_backup": "f7",
+        "quick_restore": "f8"
+    },
+    "paths": {
+        "source_path": "D:\\games\\shadPS4\\user\\savedata\\1\\CUSA03023\\SPRJ0005",
+        "backup_root": "backups"
+    }
+}
