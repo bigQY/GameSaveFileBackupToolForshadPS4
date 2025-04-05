@@ -1,2 +1,7 @@
 .conda
 backups
+
+*.pyc
+*.pyo
+*.pyd
+*.exe
