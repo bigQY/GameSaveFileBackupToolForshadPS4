@@ -9,6 +9,7 @@
     },
     "features": {
         "md5_deduplication": true,
-        "auto_load_after_restore": true
+        "auto_load_after_restore": true,
+        "auto_save_before_backup": true
     }
 }

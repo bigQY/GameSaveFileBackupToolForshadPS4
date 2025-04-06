@@ -82,7 +82,7 @@ def focus_window(window_title):
     return False
 
 
-def simulate_key_press(key, delay=0.005):
+def simulate_key_press(key, delay=0.05):
     """模拟按键
     
     Args:

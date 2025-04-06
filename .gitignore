@@ -5,3 +5,7 @@ backups
 *.pyo
 *.pyd
 *.exe
+dist
+build
+*.egg-info
+*.egg

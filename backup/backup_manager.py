@@ -39,11 +39,11 @@ def focus_window(window_title):
             win32gui.BringWindowToTop(hwnd)
             # 使用ALT+TAB切换到窗口
             import time
-            time.sleep(0.5)
+            time.sleep(0.1)
             # 尝试再次激活窗口
             win32gui.SetForegroundWindow(hwnd)
             # 给系统更多时间来响应
-            time.sleep(1.0)
+            time.sleep(0.1)
             return True
         except Exception as e:
             print(f"激活窗口失败: {str(e)}")
@@ -105,6 +105,13 @@ class BackupManager:
         """
         if not os.path.exists(self.source_path):
             return False, "源目录不存在！"
+            
+        # 检查是否需要自动保存
+        if self.config['features'].get('auto_save_before_backup', False):
+            # 先退出游戏到主界面触发自动保存
+            exit_success, exit_message = self.auto_exit_game()
+            if not exit_success:
+                messagebox.showwarning("警告", exit_message)
 
         backup_name = backup_name.strip() or "未命名备份"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -180,6 +187,14 @@ class BackupManager:
                 })
                 
             self.save_backups()
+            
+            # 检查是否需要自动载入
+            if self.config['features'].get('auto_save_before_backup', False):
+                # 备份完成后自动载入
+                load_success, load_message = self.auto_load_game()
+                if not load_success:
+                    messagebox.showwarning("警告", load_message)
+            
             return True, f"备份成功：{backup_name}"
         except Exception as e:
             import traceback
@@ -194,6 +209,13 @@ class BackupManager:
         """
         if not os.path.exists(self.source_path):
             return False, "源目录不存在"
+            
+        # 检查是否需要自动保存
+        if self.config['features'].get('auto_save_before_backup', False):
+            # 先退出游戏到主界面触发自动保存
+            exit_success, exit_message = self.auto_exit_game()
+            if not exit_success:
+                messagebox.showwarning("警告", exit_message)
 
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -265,6 +287,14 @@ class BackupManager:
                 })
                 
             self.save_backups()
+            
+            # 检查是否需要自动载入
+            if self.config['features'].get('auto_save_before_backup', False):
+                # 备份完成后自动载入
+                load_success, load_message = self.auto_load_game()
+                if not load_success:
+                    messagebox.showwarning("警告", load_message)
+            
             return True, f"快速备份成功：{backup_name}"
         except Exception as e:
             import traceback
@@ -295,6 +325,13 @@ class BackupManager:
             
             if not backup_info:
                 return False, "找不到备份信息"
+            
+            # 检查是否需要自动载入
+            if self.config['features'].get('auto_load_after_restore', False):
+                # 先退出游戏
+                exit_success, exit_message = self.auto_exit_game()
+                if not exit_success:
+                    messagebox.showwarning("警告", exit_message)
             
             # 清空目标目录
             if os.path.exists(self.source_path):
@@ -386,7 +423,10 @@ class BackupManager:
             
             # 检查是否需要自动载入
             if self.config['features'].get('auto_load_after_restore', False):
-                self.auto_load_game()
+                # 恢复存档后自动载入
+                load_success, load_message = self.auto_load_game()
+                if not load_success:
+                    messagebox.showwarning("警告", load_message)
                 
             return True, f"已从 {backup_name} 恢复存档"
         except Exception as e:
@@ -410,6 +450,13 @@ class BackupManager:
             # 检查备份路径是否存在
             if not os.path.exists(backup_path):
                 return False, "最新备份路径不存在或无法访问"
+            
+            # 检查是否需要自动载入
+            if self.config['features'].get('auto_load_after_restore', False):
+                # 先退出游戏
+                exit_success, exit_message = self.auto_exit_game()
+                if not exit_success:
+                    messagebox.showwarning("警告", exit_message)
             
             # 清空目标目录
             if os.path.exists(self.source_path):
@@ -501,7 +548,10 @@ class BackupManager:
             
             # 检查是否需要自动载入
             if self.config['features'].get('auto_load_after_restore', False):
-                self.auto_load_game()
+                # 恢复存档后自动载入
+                load_success, load_message = self.auto_load_game()
+                if not load_success:
+                    messagebox.showwarning("警告", load_message)
                 
             return True, f"已快速恢复：{latest['name']}"
         except Exception as e:
@@ -640,8 +690,8 @@ class BackupManager:
                 # 保留文件的修改时间和访问时间
                 os.utime(d, (os.path.getatime(s), os.path.getmtime(s)))
     
-    def auto_load_game(self):
-        """自动载入游戏存档"""
+    def auto_exit_game(self):
+        """自动退出游戏"""
         try:
             # 等待一段时间确保文件已经完全写入
             import time
@@ -656,33 +706,62 @@ class BackupManager:
                     if focus_window(title):
                         window_found = True
                         # 给窗口更多时间来响应
-                        time.sleep(1.0)
+                        time.sleep(0.1)
                         break
                 if window_found:
                     break
                 time.sleep(0.5)  # 等待一段时间再次尝试
             
             if window_found:
-                # 模拟按下OPTIONS键载入存档
-                simulate_key_press('enter', 0.05)  # 增加延时确保按键被识别
-                # 右方向键
-                simulate_key_press('right', 0.05)
-                simulate_key_press('right', 0.05)
-                # 确定键
-                simulate_key_press('b', 0.05)
-                simulate_key_press('up',0.05)
-                simulate_key_press('b', 0.05)
-                simulate_key_press('left', 0.05)
-                simulate_key_press('b', 0.05)
-                time.sleep(2.5)  # 增加等待时间
-                simulate_key_press('b', 0.05)
-                simulate_key_press('b', 0.05)
+                simulate_key_press('enter')
+                simulate_key_press('left')
+                simulate_key_press('b')
+                simulate_key_press('up')
+                simulate_key_press('b')
+                simulate_key_press('left')
+                simulate_key_press('b')
+                
+                return True, "已自动退出游戏"
+            else:
+                return False, "未找到游戏窗口"
+        except Exception as e:
+            return False, f"自动退出失败：{str(e)}"
+        
+    def auto_load_game(self):
+        """自动载入游戏存档"""
+        try:
+            # 等待一段时间确保文件已经完全写入
+            import time
+            time.sleep(3.5)
+            # 尝试多个可能的窗口标题
+            window_titles = ["Bloodborne", "BLOODBORNE", "血源诅咒", "血源"]
+            window_found = False
+            
+            # 多次尝试查找窗口
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                for title in window_titles:
+                    if focus_window(title):
+                        window_found = True
+                        # 给窗口更多时间来响应
+                        time.sleep(0.1)
+                        break
+                if window_found:
+                    break
+                time.sleep(0.5)  # 等待一段时间再次尝试
+            
+            if window_found:
+                simulate_key_press('b')
+                simulate_key_press('b')
+                
+                
                 
                 return True, "已自动载入存档"
             else:
                 return False, "未找到游戏窗口，请手动载入存档"
         except Exception as e:
             return False, f"自动载入失败：{str(e)}"
+        
     
     def calculate_storage_stats(self):
         """计算存储统计信息

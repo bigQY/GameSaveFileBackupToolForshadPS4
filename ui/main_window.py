@@ -255,6 +255,11 @@ class BackupManagerUI:
         ttk.Checkbutton(features_frame, text="恢复后自动载入存档", 
                        variable=self.auto_load_var).pack(anchor=tk.W)
         
+        # 自动保存选项
+        self.auto_save_var = tk.BooleanVar(value=self.config_manager.config['features'].get('auto_save_before_backup', False))
+        ttk.Checkbutton(features_frame, text="备份前自动保存存档", 
+                       variable=self.auto_save_var).pack(anchor=tk.W)
+        
         # 添加保存按钮
         ttk.Button(settings_frame, text="保存", command=lambda: self.save_settings(settings_window, 
                                                                 self.source_path_entry.get(),
@@ -315,6 +320,7 @@ class BackupManagerUI:
         # 更新功能设置
         self.config_manager.config['features']['md5_deduplication'] = self.md5_var.get()
         self.config_manager.config['features']['auto_load_after_restore'] = self.auto_load_var.get()
+        self.config_manager.config['features']['auto_save_before_backup'] = self.auto_save_var.get()
         
         # 保存配置并重新加载
         self.config_manager.save_config()

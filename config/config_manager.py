@@ -46,7 +46,8 @@ class ConfigManager:
                     },
                     'features': {
                         'md5_deduplication': True,
-                        'auto_load_after_restore': False
+                        'auto_load_after_restore': False,
+                        'auto_save_before_backup': False
                     }
                 }
                 self.save_config(default_config)
