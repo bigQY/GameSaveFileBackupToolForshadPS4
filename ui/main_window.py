@@ -61,6 +61,7 @@ class BackupManagerUI:
         buttons_frame = ttk.Frame(backup_frame)
         buttons_frame.pack(side=tk.RIGHT)
         
+        ttk.Button(buttons_frame, text=t("storage_stats"), command=self.show_storage_stats).pack(side=tk.LEFT, padx=5)
         ttk.Button(buttons_frame, text=t("settings"), command=self.show_settings).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(backup_frame, text=t("backup"), command=self.create_backup).pack(side=tk.LEFT)

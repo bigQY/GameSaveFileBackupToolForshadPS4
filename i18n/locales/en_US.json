@@ -56,5 +56,15 @@
     "rename_backup": "Rename Backup",
     "new_name": "New Name",
     "confirm_delete": "Confirm Delete",
-    "confirm_delete_backup": "Are you sure you want to delete backup '{backup_name}'?"
+    "confirm_delete_backup": "Are you sure you want to delete backup '{backup_name}'?",
+    "press_key": "Press any key...",
+    "language_changed_title": "Notice",
+    "language_changed_message": "Language settings have been changed, please restart the program to apply the new language settings",
+    "settings_saved_title": "Notice",
+    "settings_saved_message": "Settings have been saved",
+    "backup_count": "Total Backups: {count} (MD5 Dedup: {md5_count})",
+    "repo_size": "Repository Size: {size}",
+    "total_files": "Total Files: {count}",
+    "theoretical_size": "Theoretical Size: {size}",
+    "saved_space": "Space Saved: {size} ({percentage:.1f}%)"
 }
