@@ -8,7 +8,8 @@ a = Analysis(
     binaries=[],
     datas=[
         ('config.json', '.'),
-        ('resources', 'resources')
+        ('resources', 'resources'),
+        ('i18n/locales', 'i18n/locales')
     ],
     hiddenimports=[
         'psutil',
