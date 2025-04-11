@@ -94,7 +94,7 @@ class BackupManager:
         with open(self.metadata_file, "w", encoding="utf-8") as f:
             json.dump(self.backups, f, ensure_ascii=False, indent=2)
     
-    def create_backup(self, backup_name="未命名备份"):
+    def create_backup(self, backup_name="未命名备份",is_manual=False):
         """创建新备份
         
         Args:
@@ -107,7 +107,7 @@ class BackupManager:
             return False, "源目录不存在！"
             
         # 检查是否需要自动保存
-        if self.config['features'].get('auto_save_before_backup', False):
+        if self.config['features'].get('auto_save_before_backup', False) and not is_manual:
             # 先退出游戏到主界面触发自动保存
             exit_success, exit_message = self.auto_exit_game()
             if not exit_success:
@@ -189,7 +189,7 @@ class BackupManager:
             self.save_backups()
             
             # 检查是否需要自动载入
-            if self.config['features'].get('auto_save_before_backup', False):
+            if self.config['features'].get('auto_save_before_backup', False) and not is_manual:
                 # 备份完成后自动载入
                 load_success, load_message = self.auto_load_game()
                 if not load_success:
@@ -301,7 +301,7 @@ class BackupManager:
             traceback.print_exc()
             return False, f"快速备份失败：{str(e)}"
     
-    def restore_backup(self, backup_path, backup_name):
+    def restore_backup(self, backup_path, backup_name, is_manual=False):
         """恢复指定备份
         
         Args:
@@ -327,7 +327,7 @@ class BackupManager:
                 return False, "找不到备份信息"
             
             # 检查是否需要自动载入
-            if self.config['features'].get('auto_load_after_restore', False):
+            if self.config['features'].get('auto_load_after_restore', False) and not is_manual:
                 # 先退出游戏
                 exit_success, exit_message = self.auto_exit_game()
                 if not exit_success:
@@ -422,7 +422,7 @@ class BackupManager:
                 self._safe_copy_tree(data_path, self.source_path)
             
             # 检查是否需要自动载入
-            if self.config['features'].get('auto_load_after_restore', False):
+            if self.config['features'].get('auto_load_after_restore', False) and not is_manual:
                 # 恢复存档后自动载入
                 load_success, load_message = self.auto_load_game()
                 if not load_success:
