@@ -44,5 +44,17 @@
     "select_backup_path": "Select Backup Storage Location",
     "path_tip": "Tip: Please select the correct game save folder, backup files will be stored in the specified backup location",
     "set_all_paths": "Please set all required paths",
-    "game_path_not_exist": "Game save location does not exist"
+    "game_path_not_exist": "Game save location does not exist",
+    "save_config_error": "Failed to save configuration",
+    "unnamed_backup": "Unnamed Backup",
+    "select_backup_first": "Please select a backup first",
+    "warning": "Warning",
+    "hotkey_already_used": "This hotkey is already used by another function",
+    "stats_info": "Statistics",
+    "no_backup_data": "No backup data available",
+    "storage_stats": "Storage Statistics",
+    "rename_backup": "Rename Backup",
+    "new_name": "New Name",
+    "confirm_delete": "Confirm Delete",
+    "confirm_delete_backup": "Are you sure you want to delete backup '{backup_name}'?"
 }

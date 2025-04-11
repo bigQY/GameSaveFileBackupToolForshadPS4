@@ -129,7 +129,7 @@ class BackupManagerUI:
     
     def create_backup(self):
         """创建新备份"""
-        backup_name = self.backup_name.get().strip() or "未命名备份"
+        backup_name = self.backup_name.get().strip() or t("unnamed_backup")
         success, message = self.backup_manager.create_backup(backup_name,is_manual=True)
         
         if success:
@@ -137,7 +137,7 @@ class BackupManagerUI:
             self.show_status(message)
             self.backup_name.delete(0, tk.END)
         else:
-            messagebox.showerror("错误", message)
+            messagebox.showerror(t("error"), message)
     
     def quick_backup(self):
         """快速备份功能"""
@@ -147,13 +147,13 @@ class BackupManagerUI:
             self.update_backup_list()
             self.show_status(message)
         else:
-            self.master.after(0, lambda: messagebox.showerror("错误", message))
+            self.master.after(0, lambda: messagebox.showerror(t("error"), message))
     
     def restore_backup(self):
         """恢复选中备份"""
         selected = self.tree.selection()
         if not selected:
-            messagebox.showwarning("提示", "请先选择一个备份版本")
+            messagebox.showwarning(t("error"), t("select_backup_first"))
             return
             
         item = self.tree.item(selected[0])
@@ -165,7 +165,7 @@ class BackupManagerUI:
         if success:
             self.show_status(message)
         else:
-            messagebox.showerror("错误", message)
+            messagebox.showerror(t("error"), message)
     
     def quick_restore(self):
         """快速恢复最新备份"""
@@ -174,7 +174,7 @@ class BackupManagerUI:
         if success:
             self.show_status(message)
         else:
-            self.master.after(0, lambda: messagebox.showerror("错误", message))
+            self.master.after(0, lambda: messagebox.showerror(t("error"), message))
     
     def update_backup_list(self):
         """更新备份列表显示"""
@@ -197,7 +197,7 @@ class BackupManagerUI:
             message: 状态消息
         """
         self.status_bar.config(text=message)
-        self.master.after(3000, lambda: self.status_bar.config(text="就绪"))
+        self.master.after(3000, lambda: self.status_bar.config(text=t("ready")))
     
     def show_settings(self):
         """显示设置窗口"""
@@ -292,7 +292,7 @@ class BackupManagerUI:
                 # 检查按键是否已被使用
                 other_key = 'quick_restore' if key_type == 'quick_backup' else 'quick_backup'
                 if key_name == self.config_manager.config['hotkeys'][other_key]:
-                    messagebox.showwarning("警告", "该快捷键已被其他功能使用")
+                    messagebox.showwarning(t("warning"), t("hotkey_already_used"))
                     return
                 
                 # 更新配置
@@ -312,9 +312,9 @@ class BackupManagerUI:
         
         # 更新状态提示
         if key_type == 'quick_backup':
-            self.backup_key_label.config(text="请按键...")
+            self.backup_key_label.config(text=t("press_key"))
         else:
-            self.restore_key_label.config(text="请按键...")
+            self.restore_key_label.config(text=t("press_key"))
     
     def save_settings(self, settings_window, source_path, backup_path):
         """保存设置
@@ -351,11 +351,11 @@ class BackupManagerUI:
         
         # 如果语言发生变化，提示需要重启
         if new_language != old_language:
-            messagebox.showinfo("提示", "语言设置已更改，请重启程序以应用新的语言设置")
+            messagebox.showinfo(t("language_changed_title"), t("language_changed_message"))
         
         # 关闭设置窗口
         settings_window.destroy()
-        messagebox.showinfo("提示", "设置已保存")
+        messagebox.showinfo(t("settings_saved_title"), t("settings_saved_message"))
 
     def browse_directory(self, entry_widget):
         """浏览文件夹
@@ -372,17 +372,17 @@ class BackupManagerUI:
         """显示存储统计信息"""
         stats = self.backup_manager.calculate_storage_stats()
         if not stats:
-            messagebox.showinfo("统计信息", "当前没有备份数据")
+            messagebox.showinfo(t("stats_info"), t("no_backup_data"))
             return
         
         # 显示统计信息
-        stats_message = f"备份总数: {stats['backup_count']} (MD5去重: {stats['md5_backup_count']})"
-        stats_message += f"\n\n文件仓库大小: {format_size(stats['repo_size'])}"
-        stats_message += f"\n备份文件总数: {stats['total_files']}"
-        stats_message += f"\n理论占用空间: {format_size(stats['theoretical_size'])}"
-        stats_message += f"\n\n节省空间: {format_size(stats['saved_space'])} ({stats['saved_percentage']:.1f}%)"
+        stats_message = t("backup_count").format(count=stats['backup_count'], md5_count=stats['md5_backup_count'])
+        stats_message += "\n\n" + t("repo_size").format(size=format_size(stats['repo_size']))
+        stats_message += "\n" + t("total_files").format(count=stats['total_files'])
+        stats_message += "\n" + t("theoretical_size").format(size=format_size(stats['theoretical_size']))
+        stats_message += "\n\n" + t("saved_space").format(size=format_size(stats['saved_space']), percentage=stats['saved_percentage'])
         
-        messagebox.showinfo("存储统计", stats_message)
+        messagebox.showinfo(t("storage_stats"), stats_message)
     
     def on_close(self):
         """窗口关闭时的清理"""
@@ -415,12 +415,12 @@ class BackupManagerUI:
 
         # 弹出重命名对话框
         dialog = tk.Toplevel(self.master)
-        dialog.title("重命名备份")
+        dialog.title(t("rename_backup"))
         dialog.geometry("300x100")
         dialog.transient(self.master)
         dialog.grab_set()
 
-        ttk.Label(dialog, text="新名称：").pack(pady=5)
+        ttk.Label(dialog, text=t("new_name") + "：").pack(pady=5)
         entry = ttk.Entry(dialog, width=30)
         entry.insert(0, old_name)
         entry.pack(pady=5)
@@ -434,10 +434,10 @@ class BackupManagerUI:
                     self.update_backup_list()
                     self.show_status(message)
                 else:
-                    messagebox.showerror("错误", message)
+                    messagebox.showerror(t("error"), message)
             dialog.destroy()
 
-        ttk.Button(dialog, text="确定", command=do_rename).pack(pady=5)
+        ttk.Button(dialog, text=t("confirm"), command=do_rename).pack(pady=5)
         entry.bind("<Return>", lambda e: do_rename())
         entry.focus()
 
@@ -451,13 +451,13 @@ class BackupManagerUI:
         backup_name = item['values'][0]
         backup_path = item['values'][2]
 
-        if messagebox.askyesno("确认删除", f"确定要删除备份 '{backup_name}' 吗？"):
+        if messagebox.askyesno(t("confirm_delete"), t("confirm_delete_backup").format(backup_name=backup_name)):
             success, message = self.backup_manager.delete_backup(backup_path, backup_name)
             if success:
                 self.update_backup_list()
                 self.show_status(message)
             else:
-                messagebox.showerror("错误", message)
+                messagebox.showerror(t("error"), message)
 
     def duplicate_backup(self):
         """复制备份"""
@@ -474,4 +474,4 @@ class BackupManagerUI:
             self.update_backup_list()
             self.show_status(message)
         else:
-            messagebox.showerror("错误", message)
+            messagebox.showerror(t("error"), message)
