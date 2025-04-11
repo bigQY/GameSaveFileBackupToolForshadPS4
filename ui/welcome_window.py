@@ -9,6 +9,7 @@ import os
 import tkinter as tk
 from tkinter import ttk, filedialog
 from config.config_manager import ConfigManager
+from i18n import get_i18n_manager, t
 
 class WelcomeWindow:
     """欢迎界面类，用于首次使用时的配置"""
@@ -22,7 +23,7 @@ class WelcomeWindow:
         self.window = tk.Toplevel(parent)
         
         # 先设置窗口属性
-        self.window.title("欢迎使用 SaveGuard")
+        self.window.title(t("welcome_title"))
         self.window.geometry("800x600")
         self.window.resizable(False, False)
         self.window.transient(parent)
@@ -48,42 +49,42 @@ class WelcomeWindow:
         
         ttk.Label(
             welcome_frame,
-            text="欢迎使用 SaveGuard 存档守护者",
+            text=t("welcome_title"),
             font=("Microsoft YaHei UI", 20, "bold")
         ).pack()
         
         ttk.Label(
             welcome_frame,
-            text="请设置游戏存档位置和备份存储位置，开始使用程序",
+            text=t("welcome_message"),
             font=("Microsoft YaHei UI", 12)
         ).pack(pady=20)
         
         # 路径设置区域
-        paths_frame = ttk.LabelFrame(self.window, text="路径设置", padding=30)
+        paths_frame = ttk.LabelFrame(self.window, text=t("path_settings"), padding=30)
         paths_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
         
         # 存档路径
         source_frame = ttk.Frame(paths_frame)
         source_frame.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Label(source_frame, text="游戏存档位置：").pack(side=tk.LEFT)
+        ttk.Label(source_frame, text=t("game_path") + "：").pack(side=tk.LEFT)
         self.source_path_var = tk.StringVar(value=self.config_manager.config['paths']['source_path'])
         ttk.Entry(source_frame, textvariable=self.source_path_var, width=50).pack(side=tk.LEFT, padx=5)
-        ttk.Button(source_frame, text="浏览", command=self.browse_source_path).pack(side=tk.LEFT)
+        ttk.Button(source_frame, text=t("select_path"), command=self.browse_source_path).pack(side=tk.LEFT)
         
         # 备份路径
         backup_frame = ttk.Frame(paths_frame)
         backup_frame.pack(fill=tk.X)
         
-        ttk.Label(backup_frame, text="备份存储位置：").pack(side=tk.LEFT)
+        ttk.Label(backup_frame, text=t("backup_path") + "：").pack(side=tk.LEFT)
         self.backup_path_var = tk.StringVar(value=self.config_manager.config['paths']['backup_root'])
         ttk.Entry(backup_frame, textvariable=self.backup_path_var, width=50).pack(side=tk.LEFT, padx=5)
-        ttk.Button(backup_frame, text="浏览", command=self.browse_backup_path).pack(side=tk.LEFT)
+        ttk.Button(backup_frame, text=t("select_path"), command=self.browse_backup_path).pack(side=tk.LEFT)
         
         # 说明文本
         ttk.Label(
             paths_frame,
-            text="提示：请选择正确的游戏存档文件夹，备份文件将存储在指定的备份位置",
+            text=t("path_tip"),
             font=("Microsoft YaHei UI", 9),
             foreground="gray"
         ).pack(pady=(20, 0))
@@ -91,7 +92,7 @@ class WelcomeWindow:
         # 确认按钮
         ttk.Button(
             self.window,
-            text="确认并开始使用",
+            text=t("confirm_and_start"),
             command=self.save_and_close,
             style="Accent.TButton"
         ).pack(pady=20)
@@ -102,13 +103,13 @@ class WelcomeWindow:
         
     def browse_source_path(self):
         """浏览选择存档路径"""
-        path = filedialog.askdirectory(title="选择游戏存档位置")
+        path = filedialog.askdirectory(title=t("select_game_path"))
         if path:
             self.source_path_var.set(path)
     
     def browse_backup_path(self):
         """浏览选择备份路径"""
-        path = filedialog.askdirectory(title="选择备份存储位置")
+        path = filedialog.askdirectory(title=t("select_backup_path"))
         if path:
             self.backup_path_var.set(os.path.relpath(path))
     
@@ -118,11 +119,11 @@ class WelcomeWindow:
         backup_path = self.backup_path_var.get()
         
         if not source_path or not backup_path:
-            tk.messagebox.showerror("错误", "请设置所有必要的路径")
+            tk.messagebox.showerror(t("error"), t("set_all_paths"))
             return
         
         if not os.path.exists(source_path):
-            tk.messagebox.showerror("错误", "游戏存档位置不存在")
+            tk.messagebox.showerror(t("error"), t("game_path_not_exist"))
             return
         
         # 更新配置
