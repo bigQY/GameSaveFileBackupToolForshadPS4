@@ -9,7 +9,6 @@ i18n模块 - 国际化支持
 from pathlib import Path
 import json
 import locale
-from config.config_manager import ConfigManager
 
 class I18nManager:
     _instance = None
@@ -27,16 +26,9 @@ class I18nManager:
     
     def _init_translations(self):
         """初始化翻译资源"""
-        # 优先从配置文件读取语言设置
-        config_manager = ConfigManager()
-        config_lang = config_manager.config.get('language')
-        
-        # 如果配置中没有语言设置，则使用系统默认语言
-        if not config_lang:
-            system_lang = locale.getdefaultlocale()[0]
-            self._current_lang = 'zh_CN' if system_lang.startswith('zh') else 'en_US'
-        else:
-            self._current_lang = config_lang
+        # 使用系统默认语言作为初始语言
+        system_lang = locale.getdefaultlocale()[0]
+        self._current_lang = 'zh_CN' if system_lang.startswith('zh') else 'en_US'
         
         # 加载翻译文件
         i18n_dir = Path(__file__).parent / 'locales'
@@ -54,13 +46,9 @@ class I18nManager:
             return key
     
     def set_language(self, lang_code):
-        """设置当前语言并保存到配置文件"""
+        """设置当前语言"""
         if lang_code in self._translations:
             self._current_lang = lang_code
-            # 更新配置文件中的语言设置
-            config_manager = ConfigManager()
-            config_manager.config['language'] = lang_code
-            config_manager.save_config()
             return True
         return False
     

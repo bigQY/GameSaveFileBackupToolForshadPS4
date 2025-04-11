@@ -8,6 +8,7 @@
 import os
 import json
 from tkinter import messagebox
+from i18n import t, get_i18n_manager
 
 
 class ConfigManager:
@@ -25,6 +26,10 @@ class ConfigManager:
         # 初始化路径
         self.source_path = self.config['paths']['source_path']
         self.backup_root = os.path.join(os.getcwd(), self.config['paths']['backup_root'])
+        
+        # 设置i18n语言
+        if 'language' in self.config:
+            get_i18n_manager().set_language(self.config['language'])
     
     def load_config(self):
         """加载配置文件
@@ -54,7 +59,7 @@ class ConfigManager:
                 self.save_config(default_config)
                 return default_config
         except Exception as e:
-            messagebox.showerror("错误", f"加载配置文件失败：{str(e)}")
+            messagebox.showerror(t("error"), f"{t('save_config_error')}: {str(e)}")
             # 返回默认配置
             return {
                 'hotkeys': {'quick_backup': 'f7', 'quick_restore': 'f8'},
@@ -82,7 +87,7 @@ class ConfigManager:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=4)
         except Exception as e:
-            messagebox.showerror("错误", f"保存配置文件失败：{str(e)}")
+            messagebox.showerror(t("error"), f"{t('save_config_error')}: {str(e)}")
     
     def update_config(self, new_config):
         """更新配置
