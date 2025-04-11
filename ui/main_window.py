@@ -15,6 +15,7 @@ from config.config_manager import ConfigManager
 from backup.backup_manager import BackupManager
 from utils.system_utils import is_process_running, register_hotkey, unregister_all_hotkeys
 from utils.file_utils import format_size
+from i18n import get_i18n_manager, t
 
 
 class BackupManagerUI:
@@ -27,7 +28,7 @@ class BackupManagerUI:
             master: tkinter主窗口
         """
         self.master = master
-        master.title("SaveGuard v4.0 - 存档守护者")
+        master.title(t("app_title"))
         master.geometry("600x400")
         
         # 初始化配置管理器
@@ -53,28 +54,27 @@ class BackupManagerUI:
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # 备份操作区
-        backup_frame = ttk.LabelFrame(main_frame, text="创建备份", padding=10)
+        backup_frame = ttk.LabelFrame(main_frame, text=t("backup"), padding=10)
         backup_frame.grid(row=0, column=0, sticky="ew", pady=5)
         
         # 添加设置按钮和统计按钮
         buttons_frame = ttk.Frame(backup_frame)
         buttons_frame.pack(side=tk.RIGHT)
         
-        ttk.Button(buttons_frame, text="存储统计", command=self.show_storage_stats).pack(side=tk.LEFT, padx=5)
-        ttk.Button(buttons_frame, text="设置", command=self.show_settings).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text=t("settings"), command=self.show_settings).pack(side=tk.LEFT, padx=5)
         
-        ttk.Button(backup_frame, text="新建备份", command=self.create_backup).pack(side=tk.LEFT)
-        ttk.Label(backup_frame, text="备份名称：").pack(side=tk.LEFT, padx=5)
+        ttk.Button(backup_frame, text=t("backup"), command=self.create_backup).pack(side=tk.LEFT)
+        ttk.Label(backup_frame, text=t("backup_name") + ":").pack(side=tk.LEFT, padx=5)
         self.backup_name = ttk.Entry(backup_frame, width=25)
         self.backup_name.pack(side=tk.LEFT)
 
         # 备份列表
-        list_frame = ttk.LabelFrame(main_frame, text="备份列表", padding=10)
+        list_frame = ttk.LabelFrame(main_frame, text=t("backup_list"), padding=10)
         list_frame.grid(row=1, column=0, sticky="nsew", pady=5)
         
         self.tree = ttk.Treeview(list_frame, columns=("name", "date", "path"), show="headings", height=8)
-        self.tree.heading("name", text="备份名称", anchor=tk.W)
-        self.tree.heading("date", text="备份时间", anchor=tk.W)
+        self.tree.heading("name", text=t("backup_name"), anchor=tk.W)
+        self.tree.heading("date", text=t("backup_date"), anchor=tk.W)
         self.tree.column("name", width=200)
         self.tree.column("date", width=150)
         self.tree.column("path", width=300)
@@ -82,10 +82,10 @@ class BackupManagerUI:
 
         # 创建右键菜单
         self.context_menu = tk.Menu(self.master, tearoff=0)
-        self.context_menu.add_command(label="重命名", command=self.rename_backup)
-        self.context_menu.add_command(label="复制", command=self.duplicate_backup)
+        self.context_menu.add_command(label=t("rename"), command=self.rename_backup)
+        self.context_menu.add_command(label=t("duplicate"), command=self.duplicate_backup)
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="删除", command=self.delete_backup)
+        self.context_menu.add_command(label=t("delete"), command=self.delete_backup)
 
         # 绑定右键菜单
         self.tree.bind("<Button-3>", self.show_context_menu)
@@ -98,10 +98,10 @@ class BackupManagerUI:
         # 恢复操作区
         restore_frame = ttk.Frame(main_frame)
         restore_frame.grid(row=2, column=0, sticky="e", pady=5)
-        ttk.Button(restore_frame, text="恢复选中备份", command=self.restore_backup).pack(side=tk.RIGHT)
+        ttk.Button(restore_frame, text=t("restore_selected"), command=self.restore_backup).pack(side=tk.RIGHT)
 
         # 状态栏
-        self.status_bar = ttk.Label(main_frame, text="就绪", relief=tk.SUNKEN)
+        self.status_bar = ttk.Label(main_frame, text=t("ready"), relief=tk.SUNKEN)
         self.status_bar.grid(row=3, column=0, sticky="ew")
 
         # 配置网格布局权重
@@ -130,7 +130,7 @@ class BackupManagerUI:
     def create_backup(self):
         """创建新备份"""
         backup_name = self.backup_name.get().strip() or "未命名备份"
-        success, message = self.backup_manager.create_backup(backup_name)
+        success, message = self.backup_manager.create_backup(backup_name,is_manual=True)
         
         if success:
             self.update_backup_list()
@@ -160,7 +160,7 @@ class BackupManagerUI:
         backup_path = item["values"][2]
         backup_name = item["values"][0]
         
-        success, message = self.backup_manager.restore_backup(backup_path, backup_name)
+        success, message = self.backup_manager.restore_backup(backup_path, backup_name,True)
         
         if success:
             self.show_status(message)
@@ -202,66 +202,77 @@ class BackupManagerUI:
     def show_settings(self):
         """显示设置窗口"""
         settings_window = tk.Toplevel(self.master)
-        settings_window.title("设置")
-        settings_window.geometry("400x450")
+        settings_window.title(t('settings'))
+        settings_window.geometry("500x550")
         settings_window.resizable(False, False)
         settings_window.transient(self.master)
+        
         
         # 创建设置界面
         settings_frame = ttk.Frame(settings_window, padding=10)
         settings_frame.pack(fill=tk.BOTH, expand=True)
         
         # 快捷键设置
-        hotkeys_frame = ttk.LabelFrame(settings_frame, text="快捷键设置", padding=10)
+        hotkeys_frame = ttk.LabelFrame(settings_frame, text=t('hotkey_settings'), padding=10)
         hotkeys_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Label(hotkeys_frame, text="快速备份：").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(hotkeys_frame, text=t('quick_backup') + '：').grid(row=0, column=0, sticky=tk.W)
         self.backup_key_label = ttk.Label(hotkeys_frame, text=self.config_manager.config['hotkeys']['quick_backup'], width=10, relief="sunken")
         self.backup_key_label.grid(row=0, column=1, padx=5)
-        ttk.Button(hotkeys_frame, text="设置", command=lambda: self.start_key_listening('quick_backup')).grid(row=0, column=2)
+        ttk.Button(hotkeys_frame, text=t('set'), command=lambda: self.start_key_listening('quick_backup')).grid(row=0, column=2)
         
-        ttk.Label(hotkeys_frame, text="快速恢复：").grid(row=1, column=0, sticky=tk.W)
+        ttk.Label(hotkeys_frame, text=t('quick_restore') + '：').grid(row=1, column=0, sticky=tk.W)
         self.restore_key_label = ttk.Label(hotkeys_frame, text=self.config_manager.config['hotkeys']['quick_restore'], width=10, relief="sunken")
         self.restore_key_label.grid(row=1, column=1, padx=5)
-        ttk.Button(hotkeys_frame, text="设置", command=lambda: self.start_key_listening('quick_restore')).grid(row=1, column=2)
+        ttk.Button(hotkeys_frame, text=t('set'), command=lambda: self.start_key_listening('quick_restore')).grid(row=1, column=2)
         
         # 路径设置
-        paths_frame = ttk.LabelFrame(settings_frame, text="路径设置", padding=10)
+        paths_frame = ttk.LabelFrame(settings_frame, text=t('path_settings'), padding=10)
         paths_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Label(paths_frame, text="存档目录：").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(paths_frame, text=t('save_directory') + '：').grid(row=0, column=0, sticky=tk.W)
         self.source_path_entry = ttk.Entry(paths_frame, width=30)
         self.source_path_entry.insert(0, self.config_manager.config['paths']['source_path'])
         self.source_path_entry.grid(row=0, column=1, padx=5)
-        ttk.Button(paths_frame, text="浏览", command=lambda: self.browse_directory(self.source_path_entry)).grid(row=0, column=2)
+        ttk.Button(paths_frame, text=t('browse'), command=lambda: self.browse_directory(self.source_path_entry)).grid(row=0, column=2)
         
-        ttk.Label(paths_frame, text="备份目录：").grid(row=1, column=0, sticky=tk.W)
+        ttk.Label(paths_frame, text=t('backup_directory') + '：').grid(row=1, column=0, sticky=tk.W)
         self.backup_path_entry = ttk.Entry(paths_frame, width=30)
         self.backup_path_entry.insert(0, self.config_manager.config['paths']['backup_root'])
         self.backup_path_entry.grid(row=1, column=1, padx=5)
-        ttk.Button(paths_frame, text="浏览", command=lambda: self.browse_directory(self.backup_path_entry)).grid(row=1, column=2)
+        ttk.Button(paths_frame, text=t('browse'), command=lambda: self.browse_directory(self.backup_path_entry)).grid(row=1, column=2)
+        
+        # 语言设置
+        language_frame = ttk.LabelFrame(settings_frame, text=t('language_settings'), padding=10)
+        language_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(language_frame, text=t('select_language') + '：').pack(side=tk.LEFT)
+        self.language_var = tk.StringVar(value=self.config_manager.config.get('language', 'zh_CN'))
+        language_combo = ttk.Combobox(language_frame, textvariable=self.language_var, state='readonly', width=15)
+        language_combo['values'] = ['zh_CN', 'en_US']
+        language_combo.pack(side=tk.LEFT, padx=5)
         
         # 功能设置
-        features_frame = ttk.LabelFrame(settings_frame, text="功能设置", padding=10)
+        features_frame = ttk.LabelFrame(settings_frame, text=t('feature_settings'), padding=10)
         features_frame.pack(fill=tk.X, pady=5)
         
         # MD5去重选项
         self.md5_var = tk.BooleanVar(value=self.config_manager.config['features']['md5_deduplication'])
-        ttk.Checkbutton(features_frame, text="启用MD5文件去重（节省存储空间）", 
+        ttk.Checkbutton(features_frame, text=t('enable_md5_dedup'), 
                        variable=self.md5_var).pack(anchor=tk.W)
         
         # 自动载入选项
         self.auto_load_var = tk.BooleanVar(value=self.config_manager.config['features'].get('auto_load_after_restore', False))
-        ttk.Checkbutton(features_frame, text="恢复后自动载入存档", 
+        ttk.Checkbutton(features_frame, text=t('auto_load_after_restore'), 
                        variable=self.auto_load_var).pack(anchor=tk.W)
         
         # 自动保存选项
         self.auto_save_var = tk.BooleanVar(value=self.config_manager.config['features'].get('auto_save_before_backup', False))
-        ttk.Checkbutton(features_frame, text="备份前自动保存存档", 
+        ttk.Checkbutton(features_frame, text=t('auto_save_before_backup'), 
                        variable=self.auto_save_var).pack(anchor=tk.W)
         
         # 添加保存按钮
-        ttk.Button(settings_frame, text="保存", command=lambda: self.save_settings(settings_window, 
+        ttk.Button(settings_frame, text=t('save'), command=lambda: self.save_settings(settings_window, 
                                                                 self.source_path_entry.get(),
                                                                 self.backup_path_entry.get())).pack(pady=10)
     
@@ -322,6 +333,11 @@ class BackupManagerUI:
         self.config_manager.config['features']['auto_load_after_restore'] = self.auto_load_var.get()
         self.config_manager.config['features']['auto_save_before_backup'] = self.auto_save_var.get()
         
+        # 更新语言设置
+        new_language = self.language_var.get()
+        old_language = self.config_manager.config.get('language', 'zh_CN')
+        self.config_manager.config['language'] = new_language
+        
         # 保存配置并重新加载
         self.config_manager.save_config()
         self.config_manager.update_config(self.config_manager.config)
@@ -332,6 +348,10 @@ class BackupManagerUI:
         
         # 重新设置热键
         self.setup_hotkeys()
+        
+        # 如果语言发生变化，提示需要重启
+        if new_language != old_language:
+            messagebox.showinfo("提示", "语言设置已更改，请重启程序以应用新的语言设置")
         
         # 关闭设置窗口
         settings_window.destroy()

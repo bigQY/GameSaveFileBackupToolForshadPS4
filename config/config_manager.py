@@ -48,7 +48,8 @@ class ConfigManager:
                         'md5_deduplication': True,
                         'auto_load_after_restore': False,
                         'auto_save_before_backup': False
-                    }
+                    },
+                    'language': 'zh_CN'
                 }
                 self.save_config(default_config)
                 return default_config
@@ -64,7 +65,8 @@ class ConfigManager:
                 'features': {
                     'md5_deduplication': True,
                     'auto_load_after_restore': False
-                }
+                },
+                'language': 'zh_CN'
             }
     
     def save_config(self, config=None):
